@@ -209,5 +209,5 @@ def backup():
 
 if __name__ == '__main__':
     # SSL context (можно использовать self-signed certs для dev)
-    ssl_context = ('cert.pem', 'key.pem') if os.path.exists('cert.pem') and os.path.exists('key.pem') else None
-    app.run(debug=True, ssl_context=ssl_context)
+    #ssl_context = ('cert.pem', 'key.pem') if os.path.exists('cert.pem') and os.path.exists('key.pem') else None
+    app.run(debug=True)
