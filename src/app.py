@@ -1,11 +1,8 @@
 # app.py (Backend entry point)
-from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for, session
+from flask import Flask, request, jsonify, send_from_directory, render_template, redirect, url_for
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager, login_user, login_required, logout_user, UserMixin, current_user
-from werkzeug.security import generate_password_hash, check_password_hash
 import os
-import ssl
 from werkzeug.utils import secure_filename
 import pandas as pd
 import joblib
@@ -13,12 +10,9 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
 import json
-import shutil
-import logging
 
 app = Flask(__name__)
 CORS(app)
-app.secret_key = os.environ.get("SECRET_KEY", "supersecretkey")
 UPLOAD_FOLDER = 'uploads'
 MODEL_FOLDER = 'models'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -27,67 +21,20 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///realestate.db'
 db = SQLAlchemy(app)
 
-# Logging for security monitoring
-logging.basicConfig(filename='security.log', level=logging.INFO)
-
-# Flask-Login setup
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = 'login'
-
-# Database models
+# Database model
 class Dataset(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     filename = db.Column(db.String(120), unique=True, nullable=False)
-
-class User(UserMixin, db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    password = db.Column(db.String(200), nullable=False)
-
-@login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
 
 # Initialize database
 with app.app_context():
     db.create_all()
 
 @app.route('/')
-@login_required
 def home():
     return render_template('index.html')
 
-@app.route('/register', methods=['POST'])
-def register():
-    data = request.json
-    if User.query.filter_by(username=data['username']).first():
-        return jsonify({"error": "User already exists"}), 400
-    hashed_pw = generate_password_hash(data['password'], method='sha256')
-    new_user = User(username=data['username'], password=hashed_pw)
-    db.session.add(new_user)
-    db.session.commit()
-    return jsonify({"message": "User registered"})
-
-@app.route('/login', methods=['POST'])
-def login():
-    data = request.json
-    user = User.query.filter_by(username=data['username']).first()
-    if user and check_password_hash(user.password, data['password']):
-        login_user(user)
-        logging.info(f"User {user.username} logged in.")
-        return jsonify({"message": "Logged in"})
-    return jsonify({"error": "Invalid credentials"}), 401
-
-@app.route('/logout')
-@login_required
-def logout():
-    logging.info(f"User {current_user.username} logged out.")
-    logout_user()
-    return jsonify({"message": "Logged out"})
-
 @app.route('/upload', methods=['POST'])
-@login_required
 def upload_file():
     if 'file' not in request.files:
         return jsonify({"error": "No file part"}), 400
@@ -107,7 +54,6 @@ def upload_file():
     return jsonify({"message": "File uploaded successfully", "filename": filename})
 
 @app.route('/preprocess/<filename>', methods=['POST'])
-@login_required
 def preprocess_data(filename):
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     try:
@@ -123,22 +69,40 @@ def preprocess_data(filename):
         return jsonify({"error": str(e)}), 500
 
 @app.route('/train/<filename>', methods=['POST'])
-@login_required
 def train_model(filename):
-    return jsonify({"message": f"Training skipped (stub). File: {filename}", "mse": None, "status": "stub"})
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    try:
+        df = pd.read_csv(filepath)
+        X = df.iloc[:, :-1]
+        y = df.iloc[:, -1]
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        model = RandomForestRegressor(n_estimators=100)
+        model.fit(X_train, y_train)
+        preds = model.predict(X_test)
+        mse = mean_squared_error(y_test, preds)
+        model_path = os.path.join(MODEL_FOLDER, filename.replace('.csv', '_model.pkl'))
+        joblib.dump(model, model_path)
+        return jsonify({"message": "Model trained", "mse": mse})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/predict/<filename>', methods=['POST'])
-@login_required
 def predict(filename):
-    return jsonify({"message": "Prediction skipped (stub)", "status": "stub"})
+    model_path = os.path.join(MODEL_FOLDER, filename.replace('.csv', '_model.pkl'))
+    try:
+        model = joblib.load(model_path)
+        input_data = request.get_json()
+        df = pd.DataFrame([input_data])
+        preds = model.predict(df)
+        return jsonify({"prediction": preds.tolist()})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/files/<filename>', methods=['GET'])
-@login_required
 def get_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 @app.route('/models', methods=['GET'])
-@login_required
 def list_models():
     models = os.listdir(MODEL_FOLDER)
     return jsonify({"models": models})
@@ -197,17 +161,5 @@ def openapi():
     }
     return jsonify(spec)
 
-# Резервное копирование (простой cron-like вызов)
-@app.route('/backup', methods=['POST'])
-@login_required
-def backup():
-    try:
-        shutil.make_archive("backup", 'zip', root_dir='uploads')
-        return jsonify({"message": "Backup created"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
 if __name__ == '__main__':
-    # SSL context (можно использовать self-signed certs для dev)
-    #ssl_context = ('cert.pem', 'key.pem') if os.path.exists('cert.pem') and os.path.exists('key.pem') else None
     app.run(debug=True)
