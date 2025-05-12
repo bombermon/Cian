@@ -1,29 +1,31 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Real Estate ML Platform</title>
-</head>
-<body>
-    <h1>Upload and Train Real Estate Model</h1>
-    <form id="upload-form" enctype="multipart/form-data">
-        <input type="file" name="file" required />
-        <button type="submit">Upload</button>
-    </form>
-    <p id="response"></p>
-    <script>
-        const form = document.getElementById('upload-form');
-        const responseText = document.getElementById('response');
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const formData = new FormData(form);
-            const res = await fetch('/upload', {
-                method: 'POST',
-                body: formData
+    <html>
+    <head>
+        <title>Real Estate Estimator</title>
+    </head>
+    <body>
+        <h1>Heuristic Price Estimation</h1>
+        <form id="heuristicForm">
+            <label for="area">Enter area (m²):</label>
+            <input type="number" id="area" name="area" required>
+            <button type="submit">Estimate</button>
+        </form>
+        <p id="result"></p>
+        <script>
+            document.getElementById('heuristicForm').addEventListener('submit', function(event) {
+                event.preventDefault();
+                const area = document.getElementById('area').value;
+                fetch('/heuristic', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ area: area })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('result').textContent =
+                        data.heuristic_price ? `Estimated Price: ${data.heuristic_price.toLocaleString()} RUB` : `Error: ${data.error}`;
+                });
             });
-            const data = await res.json();
-            responseText.textContent = JSON.stringify(data);
-        });
-    </script>
-</body>
-</html>
+        </script>
+    </body>
+    </html>

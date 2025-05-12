@@ -2,3 +2,6 @@ cert.pem
 key.pem
 /data
 security.log
+/logs
+/processed
+/models

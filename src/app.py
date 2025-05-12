@@ -3,6 +3,7 @@ from flask import Flask, request, jsonify, send_from_directory, render_template,
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 import os
+import logging
 from werkzeug.utils import secure_filename
 import pandas as pd
 import joblib
@@ -15,11 +16,24 @@ app = Flask(__name__)
 CORS(app)
 UPLOAD_FOLDER = 'uploads'
 MODEL_FOLDER = 'models'
+LOG_FOLDER = 'logs'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(MODEL_FOLDER, exist_ok=True)
+os.makedirs(LOG_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///realestate.db'
 db = SQLAlchemy(app)
+
+# Logging configuration
+logging.basicConfig(
+    filename=os.path.join(LOG_FOLDER, 'server.log'),
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s %(message)s'
+)
+
+@app.before_request
+def log_request():
+    logging.info(f"Request: {request.method} {request.path} | IP: {request.remote_addr}")
 
 # Database model
 class Dataset(db.Model):
@@ -32,7 +46,39 @@ with app.app_context():
 
 @app.route('/')
 def home():
-    return render_template('index.html')
+    return '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Real Estate Estimator</title>
+    </head>
+    <body>
+        <h1>Heuristic Price Estimation</h1>
+        <form id="heuristicForm">
+            <label for="area">Enter area (m²):</label>
+            <input type="number" id="area" name="area" required>
+            <button type="submit">Estimate</button>
+        </form>
+        <p id="result"></p>
+        <script>
+            document.getElementById('heuristicForm').addEventListener('submit', function(event) {
+                event.preventDefault();
+                const area = document.getElementById('area').value;
+                fetch('/heuristic', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ area: area })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('result').textContent =
+                        data.heuristic_price ? `Estimated Price: ${data.heuristic_price.toLocaleString()} RUB` : `Error: ${data.error}`;
+                });
+            });
+        </script>
+    </body>
+    </html>
+    '''
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -51,6 +97,7 @@ def upload_file():
         db.session.add(new_entry)
         db.session.commit()
 
+    logging.info(f"File uploaded: {filename}")
     return jsonify({"message": "File uploaded successfully", "filename": filename})
 
 @app.route('/preprocess/<filename>', methods=['POST'])
@@ -64,8 +111,10 @@ def preprocess_data(filename):
         df.dropna(inplace=True)
         df = pd.get_dummies(df)
         df.to_csv(filepath, index=False)
+        logging.info(f"Preprocessed file: {filename}, shape: {df.shape}")
         return jsonify({"message": "Data preprocessed", "shape": df.shape})
     except Exception as e:
+        logging.error(f"Preprocessing error for {filename}: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/train/<filename>', methods=['POST'])
@@ -82,8 +131,10 @@ def train_model(filename):
         mse = mean_squared_error(y_test, preds)
         model_path = os.path.join(MODEL_FOLDER, filename.replace('.csv', '_model.pkl'))
         joblib.dump(model, model_path)
+        logging.info(f"Model trained for {filename}, MSE: {mse:.2f}")
         return jsonify({"message": "Model trained", "mse": mse})
     except Exception as e:
+        logging.error(f"Training error for {filename}: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/predict/<filename>', methods=['POST'])
@@ -94,9 +145,23 @@ def predict(filename):
         input_data = request.get_json()
         df = pd.DataFrame([input_data])
         preds = model.predict(df)
+        logging.info(f"Prediction made for {filename}: {preds.tolist()}")
         return jsonify({"prediction": preds.tolist()})
     except Exception as e:
+        logging.error(f"Prediction error for {filename}: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+@app.route('/heuristic', methods=['POST'])
+def heuristic_price():
+    data = request.get_json()
+    area = data.get("area")
+    try:
+        price = float(area) * 300000
+        logging.info(f"Heuristic prediction: area={area}, price={price}")
+        return jsonify({"heuristic_price": price})
+    except Exception as e:
+        logging.error(f"Heuristic error: {str(e)}")
+        return jsonify({"error": str(e)}), 400
 
 @app.route('/files/<filename>', methods=['GET'])
 def get_file(filename):
@@ -155,6 +220,12 @@ def openapi():
                 "get": {
                     "summary": "List all trained models",
                     "responses": {"200": {"description": "Model list"}}
+                }
+            },
+            "/heuristic": {
+                "post": {
+                    "summary": "Heuristic price estimation (300k per m^2)",
+                    "responses": {"200": {"description": "Heuristic price returned"}}
                 }
             }
         }
