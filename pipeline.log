@@ -1,0 +1,36 @@
+2025-05-12 21:22:53,641 - INFO - Pipeline started.
+2025-05-12 21:23:03,728 - INFO - Raw data saved to data/raw/raw_2025-05-12_21-22.csv
+2025-05-12 21:23:03,739 - INFO - Processed data saved to data/processed/processed_raw_2025-05-12_21-22.csv
+2025-05-12 21:23:03,753 - INFO - Sample data:
+    floor  floors_count  rooms_count  total_meters     price  url_id
+0       5             8            2          82.4  82317600       0
+3      10            18            1          32.0  13590000       3
+6       3             4            3          80.0  46000000       6
+7      27            41            3          79.0  71000000       7
+18      7            14            3          68.9  41000000      18
+2025-05-12 21:23:03,765 - INFO - Model: test5.pkl | MSE: 1445271210129085.25
+2025-05-12 21:23:03,765 - INFO - Model coefficients: [  -127656.7211114     485506.67363732 -23079143.59630345
+   1841325.1996444     618927.64941179]
+2025-05-12 21:23:03,766 - INFO - Sample predictions: [3.99427173e+07 6.10612782e+07 1.21649430e+08]
+2025-05-12 21:23:03,767 - INFO - Model saved to models/test5.pkl
+2025-05-12 21:23:03,767 - INFO - Pipeline finished.
+2025-05-12 21:24:30,046 - INFO - Pipeline started.
+2025-05-12 21:24:40,336 - INFO - Raw data saved to data/raw/raw_2025-05-12_21-24.csv
+2025-05-12 21:24:40,348 - INFO - Processed data saved to data/processed/processed_raw_2025-05-12_21-24.csv
+2025-05-12 21:24:40,357 - INFO - Sample data:
+    floor  floors_count  rooms_count  total_meters     price  url_id
+0       5             8            2          82.4  82317600       0
+3      10            18            1          32.0  13590000       3
+6       3             4            3          80.0  46000000       6
+7      27            41            3          79.0  71000000       7
+18      7            14            3          68.9  41000000      18
+2025-05-12 21:24:40,368 - INFO - Model: test5.pkl
+2025-05-12 21:24:40,369 - INFO - MSE: 133219187441068.38
+2025-05-12 21:24:40,369 - INFO - MAE: 9888284.36
+2025-05-12 21:24:40,369 - INFO - R2: 0.71
+2025-05-12 21:24:40,369 - INFO - RMSE: 11542061.66
+2025-05-12 21:24:40,369 - INFO - Model coefficients: [   252836.35487127    129764.89526356 -20221182.43581357
+   1845069.5907745     363935.07729721]
+2025-05-12 21:24:40,369 - INFO - Sample predictions: [95209221.41975257 59504955.67839289 67335881.17592053]
+2025-05-12 21:24:40,371 - INFO - Model saved to models/test5.pkl
+2025-05-12 21:24:40,371 - INFO - Pipeline finished.

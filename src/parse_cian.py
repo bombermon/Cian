@@ -1,38 +1,27 @@
-"""  Parse data from cian.ru
-https://github.com/lenarsaitov/cianparser
-"""
-import datetime
-import cianparser
-import pandas as pd
-
-moscow_parser = cianparser.CianParser(location="Москва")
-
-def main():
+def collect_data(output_dir: str) -> str:
     """
-    Function docstring
+    Collects real estate data from cian.ru and saves it as CSV.
+
+    Args:
+        output_dir (str): Directory to save the raw data.
+
+    Returns:
+        str: Path to the saved raw CSV file.
     """
+    parser = CianParser(location="Москва")
     t = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")
-    n_rooms = 1
-    csv_path = f'data/raw/{n_rooms}_{t}.csv'
-    
-    # Получение данных о квартирах
-    data = moscow_parser.get_flats(
+    csv_path = os.path.join(output_dir, f"raw_{t}.csv")
+    data = parser.get_flats(
         deal_type="sale",
-        rooms=(1,2,3,),
+        rooms=(1, 2, 3),
         with_saving_csv=False,
         additional_settings={
             "start_page": 1,
             "end_page": 20,
             "object_type": "secondary"
-        })
-    
-    # Преобразование данных в DataFrame
+        }
+    )
     df = pd.DataFrame(data)
-
-    # Сохранение DataFrame в CSV файл
-    df.to_csv(csv_path,
-              encoding='utf-8',
-              index=False)
-
-if __name__ == '__main__':
-    main()
+    df.to_csv(csv_path, index=False, encoding="utf-8")
+    print(f"[+] Raw data saved to {csv_path}")
+    return csv_path
