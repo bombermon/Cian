@@ -5,3 +5,4 @@ security.log
 /logs
 /processed
 /models
+server.log

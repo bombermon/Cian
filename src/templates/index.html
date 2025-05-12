@@ -1,31 +1,71 @@
+<!-- templates/index.html -->
 <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Real Estate Estimator</title>
-    </head>
-    <body>
-        <h1>Heuristic Price Estimation</h1>
-        <form id="heuristicForm">
-            <label for="area">Enter area (m²):</label>
-            <input type="number" id="area" name="area" required>
-            <button type="submit">Estimate</button>
-        </form>
-        <p id="result"></p>
-        <script>
-            document.getElementById('heuristicForm').addEventListener('submit', function(event) {
-                event.preventDefault();
-                const area = document.getElementById('area').value;
-                fetch('/heuristic', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ area: area })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('result').textContent =
-                        data.heuristic_price ? `Estimated Price: ${data.heuristic_price.toLocaleString()} RUB` : `Error: ${data.error}`;
-                });
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Предсказание цены недвижимости</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: auto; }
+        label { display: block; margin-top: 10px; }
+        input[type="number"] { width: 100%; padding: 8px; }
+        button { margin-top: 15px; padding: 10px 20px; font-size: 16px; }
+        #result { margin-top: 20px; font-weight: bold; font-size: 18px; }
+    </style>
+</head>
+<body>
+    <h1>Предсказание цены квартиры</h1>
+    <form id="predict-form">
+        <label for="floor">Этаж</label>
+        <input type="number" id="floor" name="floor" required>
+
+        <label for="floors_count">Всего этажей</label>
+        <input type="number" id="floors_count" name="floors_count" required>
+
+        <label for="rooms_count">Количество комнат</label>
+        <input type="number" id="rooms_count" name="rooms_count" required>
+
+        <label for="total_meters">Площадь (кв.м)</label>
+        <input type="number" step="0.01" id="total_meters" name="total_meters" required>
+
+        <button type="submit">Предсказать цену</button>
+    </form>
+    <div id="result"></div>
+
+    <script>
+        function numberToWords(num) {
+
+            const millions = Math.floor(num / 1_000_000);
+            const thousands = Math.floor((num % 1_000_000) / 1000);
+            const remainder = num % 1000;
+
+            let result = '';
+            if (millions) result += millions + ' миллион ';
+            if (thousands) result += thousands + ' тысяч ';
+            if (remainder) result += remainder;
+            return result.trim() + ' рублей';
+        }
+
+        document.getElementById('predict-form').addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const data = {
+                floor: Number(document.getElementById('floor').value),
+                floors_count: Number(document.getElementById('floors_count').value),
+                rooms_count: Number(document.getElementById('rooms_count').value),
+                total_meters: Number(document.getElementById('total_meters').value)
+            };
+            const filename = 'your_dataset.csv';  // Замените на фактическое имя файла
+
+            const response = await fetch(`/predict/${filename}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
             });
-        </script>
-    </body>
-    </html>
+            const result = await response.json();
+            const value = result.prediction ? Math.round(result.prediction[0]) : 0;
+            document.getElementById('result').innerText = result.prediction
+                ? 'Предсказанная цена: ' + numberToWords(value)
+                : 'Ошибка: ' + result.error;
+        });
+    </script>
+</body>
+</html>

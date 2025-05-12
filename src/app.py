@@ -12,7 +12,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
 import json
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='templates')
 CORS(app)
 UPLOAD_FOLDER = 'uploads'
 MODEL_FOLDER = 'models'
@@ -46,39 +46,7 @@ with app.app_context():
 
 @app.route('/')
 def home():
-    return '''
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Real Estate Estimator</title>
-    </head>
-    <body>
-        <h1>Heuristic Price Estimation</h1>
-        <form id="heuristicForm">
-            <label for="area">Enter area (m²):</label>
-            <input type="number" id="area" name="area" required>
-            <button type="submit">Estimate</button>
-        </form>
-        <p id="result"></p>
-        <script>
-            document.getElementById('heuristicForm').addEventListener('submit', function(event) {
-                event.preventDefault();
-                const area = document.getElementById('area').value;
-                fetch('/heuristic', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ area: area })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('result').textContent =
-                        data.heuristic_price ? `Estimated Price: ${data.heuristic_price.toLocaleString()} RUB` : `Error: ${data.error}`;
-                });
-            });
-        </script>
-    </body>
-    </html>
-    '''
+    return render_template('index.html')
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -137,9 +105,35 @@ def train_model(filename):
         logging.error(f"Training error for {filename}: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/predict_form', methods=['POST'])
+def predict_form():
+    try:
+        model_path = os.path.join(MODEL_FOLDER, 'latest_model.pkl')
+        if not os.path.exists(model_path):
+            return render_template('index.html', error="Модель не найдена. Пожалуйста, обучите модель.")
+        model = joblib.load(model_path)
+        data = {
+            'floor': int(request.form['floor']),
+            'floors_count': int(request.form['floors_count']),
+            'rooms_count': int(request.form['rooms_count']),
+            'total_meters': float(request.form['total_meters'])
+        }
+        df = pd.DataFrame([data])
+        prediction = model.predict(df)[0]
+
+        # Число в слова
+        millions = int(prediction) // 1_000_000
+        thousands = (int(prediction) % 1_000_000) // 1000
+        price_text = f"{millions} млн {thousands} тыс"
+
+        return render_template('index.html', prediction=price_text)
+    except Exception as e:
+        logging.error(f"Form prediction error: {str(e)}")
+        return render_template('index.html', error="Ошибка предсказания. Проверьте входные данные.")
+
 @app.route('/predict/<filename>', methods=['POST'])
 def predict(filename):
-    model_path = os.path.join(MODEL_FOLDER, filename.replace('.csv', '_model.pkl'))
+    model_path = os.path.join(MODEL_FOLDER, 'linear_model.pkl')
     try:
         model = joblib.load(model_path)
         input_data = request.get_json()
@@ -151,21 +145,6 @@ def predict(filename):
         logging.error(f"Prediction error for {filename}: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-@app.route('/heuristic', methods=['POST'])
-def heuristic_price():
-    data = request.get_json()
-    area = data.get("area")
-    try:
-        price = float(area) * 300000
-        logging.info(f"Heuristic prediction: area={area}, price={price}")
-        return jsonify({"heuristic_price": price})
-    except Exception as e:
-        logging.error(f"Heuristic error: {str(e)}")
-        return jsonify({"error": str(e)}), 400
-
-@app.route('/files/<filename>', methods=['GET'])
-def get_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 @app.route('/models', methods=['GET'])
 def list_models():
