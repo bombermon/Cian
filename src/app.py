@@ -48,62 +48,20 @@ with app.app_context():
 def home():
     return render_template('index.html')
 
-@app.route('/upload', methods=['POST'])
-def upload_file():
-    if 'file' not in request.files:
-        return jsonify({"error": "No file part"}), 400
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({"error": "No selected file"}), 400
-    filename = secure_filename(file.filename)
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    file.save(filepath)
-
-    # Save to DB
-    if not Dataset.query.filter_by(filename=filename).first():
-        new_entry = Dataset(filename=filename)
-        db.session.add(new_entry)
-        db.session.commit()
-
-    logging.info(f"File uploaded: {filename}")
-    return jsonify({"message": "File uploaded successfully", "filename": filename})
-
-@app.route('/preprocess/<filename>', methods=['POST'])
-def preprocess_data(filename):
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+@app.route('/predict/<filename>', methods=['POST'])
+def predict(filename):
+    model_path = os.path.join(MODEL_FOLDER, 'linear_model.pkl')
     try:
-        if filename.endswith('.csv'):
-            df = pd.read_csv(filepath)
-        else:
-            df = pd.read_excel(filepath)
-        df.dropna(inplace=True)
-        df = pd.get_dummies(df)
-        df.to_csv(filepath, index=False)
-        logging.info(f"Preprocessed file: {filename}, shape: {df.shape}")
-        return jsonify({"message": "Data preprocessed", "shape": df.shape})
+        model = joblib.load(model_path)
+        input_data = request.get_json()
+        df = pd.DataFrame([input_data])
+        preds = model.predict(df)
+        logging.info(f"Prediction made for {filename}: {preds.tolist()}")
+        return jsonify({"prediction": preds.tolist()})
     except Exception as e:
-        logging.error(f"Preprocessing error for {filename}: {str(e)}")
+        logging.error(f"Prediction error for {filename}: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-@app.route('/train/<filename>', methods=['POST'])
-def train_model(filename):
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    try:
-        df = pd.read_csv(filepath)
-        X = df.iloc[:, :-1]
-        y = df.iloc[:, -1]
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-        model = RandomForestRegressor(n_estimators=100)
-        model.fit(X_train, y_train)
-        preds = model.predict(X_test)
-        mse = mean_squared_error(y_test, preds)
-        model_path = os.path.join(MODEL_FOLDER, filename.replace('.csv', '_model.pkl'))
-        joblib.dump(model, model_path)
-        logging.info(f"Model trained for {filename}, MSE: {mse:.2f}")
-        return jsonify({"message": "Model trained", "mse": mse})
-    except Exception as e:
-        logging.error(f"Training error for {filename}: {str(e)}")
-        return jsonify({"error": str(e)}), 500
 
 @app.route('/predict_form', methods=['POST'])
 def predict_form():
@@ -121,7 +79,7 @@ def predict_form():
         df = pd.DataFrame([data])
         prediction = model.predict(df)[0]
 
-        # Число в слова
+       
         millions = int(prediction) // 1_000_000
         thousands = (int(prediction) % 1_000_000) // 1000
         price_text = f"{millions} млн {thousands} тыс"
@@ -130,20 +88,6 @@ def predict_form():
     except Exception as e:
         logging.error(f"Form prediction error: {str(e)}")
         return render_template('index.html', error="Ошибка предсказания. Проверьте входные данные.")
-
-@app.route('/predict/<filename>', methods=['POST'])
-def predict(filename):
-    model_path = os.path.join(MODEL_FOLDER, 'linear_model.pkl')
-    try:
-        model = joblib.load(model_path)
-        input_data = request.get_json()
-        df = pd.DataFrame([input_data])
-        preds = model.predict(df)
-        logging.info(f"Prediction made for {filename}: {preds.tolist()}")
-        return jsonify({"prediction": preds.tolist()})
-    except Exception as e:
-        logging.error(f"Prediction error for {filename}: {str(e)}")
-        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/models', methods=['GET'])
@@ -165,46 +109,16 @@ def openapi():
             "version": "1.0.0"
         },
         "paths": {
-            "/upload": {
-                "post": {
-                    "summary": "Upload a CSV or Excel file",
-                    "responses": {"200": {"description": "File uploaded"}}
-                }
-            },
-            "/preprocess/{filename}": {
-                "post": {
-                    "summary": "Preprocess uploaded file",
-                    "responses": {"200": {"description": "Data preprocessed"}}
-                }
-            },
-            "/train/{filename}": {
-                "post": {
-                    "summary": "Train ML model",
-                    "responses": {"200": {"description": "Model trained"}}
-                }
-            },
             "/predict/{filename}": {
                 "post": {
                     "summary": "Predict from input data",
                     "responses": {"200": {"description": "Prediction result"}}
                 }
             },
-            "/files/{filename}": {
-                "get": {
-                    "summary": "Download file",
-                    "responses": {"200": {"description": "File content"}}
-                }
-            },
             "/models": {
                 "get": {
                     "summary": "List all trained models",
                     "responses": {"200": {"description": "Model list"}}
-                }
-            },
-            "/heuristic": {
-                "post": {
-                    "summary": "Heuristic price estimation (300k per m^2)",
-                    "responses": {"200": {"description": "Heuristic price returned"}}
                 }
             }
         }
