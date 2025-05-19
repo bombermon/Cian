@@ -9,6 +9,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import numpy as np
+from xgboost import XGBRegressor
 
 
 # Настройка логирования
@@ -113,7 +114,7 @@ def train_and_evaluate(csv_path: str, model_name: str, test_size: float) -> None
     X_train, X_test = X.iloc[:split_index], X.iloc[split_index:]
     y_train, y_test = y.iloc[:split_index], y.iloc[split_index:]
 
-    model = LinearRegression()
+    model = XGBRegressor(random_state=42)
     model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
 
