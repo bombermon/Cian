@@ -6,3 +6,4 @@ security.log
 /processed
 /models
 server.log
+pipeline.log
