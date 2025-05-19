@@ -38,8 +38,10 @@ def collect_data(output_dir: str) -> str:
         with_saving_csv=False,
         additional_settings={
             "start_page": 1,
-            "end_page": 2,
-            "object_type": "secondary"
+            "end_page": 50,
+            "object_type": "secondary",
+            "min_price": 1000000,
+            "max_price": 25000000,
         }
     )
     df = pd.DataFrame(data)
@@ -62,6 +64,11 @@ def preprocess_data(input_csv: str, output_dir: str) -> str:
     df = pd.read_csv(input_csv)
     df.dropna(inplace=True)
     df['url_id'] = df.index
+
+    # Добавляем признаки первого и последнего этажа
+    df['first_floor'] = df['floor'] == 1
+    df['last_floor'] = df['floor'] == df['floors_count']
+
     columns_to_drop = [
         'author', 'commissions', 'author_type', 'url', 'location',
         'house_number', 'street', 'residential_complex', 'ID',

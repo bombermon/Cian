@@ -48,19 +48,56 @@ with app.app_context():
 def home():
     return render_template('index.html')
 
-@app.route('/predict/<filename>', methods=['POST'])
-def predict(filename):
-    model_path = os.path.join(MODEL_FOLDER, 'linear_model.pkl')
+# Route for documentation 
+@app.route('/docs', methods=['GET'])
+def docs():
+    return redirect(url_for('openapi_ui'), code=302)
+
+# Call swagger
+@app.route('/swagger')
+def openapi_ui():
+    return redirect(f"https://petstore.swagger.io/?url={request.url_root}openapi.json", code=302)
+
+
+
+@app.route('/predict', methods=['POST'])
+def predict():
+    model_name = request.args.get('model', 'last_model.pkl')
+    model_path = os.path.join(MODEL_FOLDER, model_name)
+
     try:
         model = joblib.load(model_path)
-        input_data = request.get_json()
+
+        # Проверка: JSON или форма
+        if request.is_json:
+            input_data = request.get_json()
+        else:
+            input_data = {
+                'floor': int(request.form['floor']),
+                'floors_count': int(request.form['floors_count']),
+                'rooms_count': int(request.form['rooms_count']),
+                'total_meters': float(request.form['total_meters'])
+            }
+
         df = pd.DataFrame([input_data])
-        preds = model.predict(df)
-        logging.info(f"Prediction made for {filename}: {preds.tolist()}")
-        return jsonify({"prediction": preds.tolist()})
+        prediction = model.predict(df)[0]
+
+        if request.is_json:
+            return jsonify({"prediction": [prediction]})
+        else:
+            # Отправка результата на index.html
+            millions = int(prediction) // 1_000_000
+            thousands = (int(prediction) % 1_000_000) // 1000
+            price_text = f"{millions} млн {thousands} тыс"
+            return render_template('index.html', prediction=price_text)
+
     except Exception as e:
-        logging.error(f"Prediction error for {filename}: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        logging.error(f"Prediction error: {str(e)}")
+        if request.is_json:
+            return jsonify({"error": str(e)}), 500
+        else:
+            return render_template('index.html', error="Ошибка предсказания. Проверьте входные данные.")
+
 
 
 @app.route('/predict_form', methods=['POST'])
@@ -95,10 +132,7 @@ def list_models():
     models = os.listdir(MODEL_FOLDER)
     return jsonify({"models": models})
 
-# API documentation endpoint
-@app.route('/docs', methods=['GET'])
-def docs():
-    return redirect("https://petstore.swagger.io/?url=http://localhost:5000/openapi.json", code=302)
+
 
 @app.route('/openapi.json')
 def openapi():
@@ -106,24 +140,104 @@ def openapi():
         "openapi": "3.0.0",
         "info": {
             "title": "Real Estate ML API",
-            "version": "1.0.0"
+            "version": "1.0.0",
+            "description": "API для предсказания цены недвижимости на основе параметров квартиры.\n\n"
+                           "Можно использовать POST-запросы с параметрами квартиры для получения предсказанной стоимости."
         },
         "paths": {
             "/predict/{filename}": {
                 "post": {
-                    "summary": "Predict from input data",
-                    "responses": {"200": {"description": "Prediction result"}}
+                    "summary": "Сделать предсказание по JSON-данным",
+                    "description": "Возвращает предсказанную цену квартиры на основе параметров, переданных в теле запроса.",
+                    "parameters": [
+                        {
+                            "name": "filename",
+                            "in": "path",
+                            "required": True,
+                            "description": "Имя файла, для которого делается предсказание (используется только в логах).",
+                            "schema": {"type": "string"}
+                        }
+                    ],
+                    "requestBody": {
+                        "required": True,
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "floor": {"type": "integer", "example": 5},
+                                        "floors_count": {"type": "integer", "example": 12},
+                                        "rooms_count": {"type": "integer", "example": 2},
+                                        "total_meters": {"type": "number", "format": "float", "example": 56.3}
+                                    },
+                                    "required": ["floor", "floors_count", "rooms_count", "total_meters"]
+                                }
+                            }
+                        }
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "Успешный ответ с предсказанной ценой.",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "prediction": {
+                                                "type": "array",
+                                                "items": {"type": "number"},
+                                                "example": [7800000.0]
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "500": {
+                            "description": "Ошибка при предсказании",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "error": {"type": "string"}
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             },
             "/models": {
                 "get": {
-                    "summary": "List all trained models",
-                    "responses": {"200": {"description": "Model list"}}
+                    "summary": "Получить список доступных моделей",
+                    "description": "Возвращает список всех сохранённых файлов моделей в папке `/models`.",
+                    "responses": {
+                        "200": {
+                            "description": "Список файлов моделей.",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "models": {
+                                                "type": "array",
+                                                "items": {"type": "string"},
+                                                "example": ["latest_model.pkl", "model_2025_05_01.pkl"]
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
     }
     return jsonify(spec)
+
 
 if __name__ == '__main__':
     app.run(debug=True)

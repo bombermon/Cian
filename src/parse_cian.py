@@ -25,3 +25,5 @@ def collect_data(output_dir: str) -> str:
     df.to_csv(csv_path, index=False, encoding="utf-8")
     print(f"[+] Raw data saved to {csv_path}")
     return csv_path
+
+collect_data("data/raw")

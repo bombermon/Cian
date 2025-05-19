@@ -5,16 +5,62 @@
     <meta charset="UTF-8">
     <title>Предсказание цены недвижимости</title>
     <style>
-        body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: auto; }
-        label { display: block; margin-top: 10px; }
-        input[type="number"] { width: 100%; padding: 8px; }
-        button { margin-top: 15px; padding: 10px 20px; font-size: 16px; }
-        #result { margin-top: 20px; font-weight: bold; font-size: 18px; }
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 600px;
+            margin: auto;
+        }
+        label {
+            display: block;
+            margin-top: 10px;
+        }
+        input[type="number"] {
+            width: 100%;
+            padding: 8px;
+        }
+        button {
+            margin-top: 15px;
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+        #result {
+            margin-top: 20px;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .doc-button {
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border: none;
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
     <h1>Предсказание цены квартиры</h1>
-    <form id="predict-form">
+
+    {% if error %}
+        <div class="error">{{ error }}</div>
+    {% endif %}
+
+    {% if prediction %}
+        <div id="result">Предсказанная цена: {{ prediction }}</div>
+    {% else %}
+        <div id="result"></div>
+    {% endif %}
+
+    <form id="predict-form" method="POST" action="/predict">
         <label for="floor">Этаж</label>
         <input type="number" id="floor" name="floor" required>
 
@@ -29,11 +75,11 @@
 
         <button type="submit">Предсказать цену</button>
     </form>
-    <div id="result"></div>
+
+    <a class="doc-button" href="/docs" target="_blank">📄 Документация API</a>
 
     <script>
         function numberToWords(num) {
-
             const millions = Math.floor(num / 1_000_000);
             const thousands = Math.floor((num % 1_000_000) / 1000);
             const remainder = num % 1000;
@@ -53,18 +99,22 @@
                 rooms_count: Number(document.getElementById('rooms_count').value),
                 total_meters: Number(document.getElementById('total_meters').value)
             };
-            const filename = 'your_dataset.csv';  // Замените на фактическое имя файла
 
-            const response = await fetch(`/predict/${filename}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            const result = await response.json();
-            const value = result.prediction ? Math.round(result.prediction[0]) : 0;
-            document.getElementById('result').innerText = result.prediction
-                ? 'Предсказанная цена: ' + numberToWords(value)
-                : 'Ошибка: ' + result.error;
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+                const value = result.prediction ? Math.round(result.prediction[0]) : 0;
+                document.getElementById('result').innerText = result.prediction
+                    ? 'Предсказанная цена: ' + numberToWords(value)
+                    : 'Ошибка: ' + result.error;
+            } catch (err) {
+                document.getElementById('result').innerText = 'Ошибка: не удалось получить ответ от сервера.';
+            }
         });
     </script>
 </body>
