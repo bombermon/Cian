@@ -1,0 +1,4 @@
+input_csv: "data/for_pl/data.csv"
+processed_csv: "data/processed/test_pl.csv"
+model_name: "lin_model.pkl"
+test_size: 0.2

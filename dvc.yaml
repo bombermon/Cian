@@ -1,0 +1,16 @@
+stages:
+  preprocess:
+    cmd: python3 src/preprocess_data.py data/for_pl/data.csv data/processed/test_pl.csv
+      --force
+    deps:
+    - data/for_pl/data.csv
+    - src/preprocess_data.py
+    outs:
+    - data/processed/test_pl.csv
+  train:
+    cmd: python3 src/train.py data/processed/test_pl.csv models/lin_model.pkl
+    deps:
+    - data/processed/test_pl.csv
+    - src/train.py
+    outs:
+    - models/lin_model.pkl
