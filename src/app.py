@@ -62,13 +62,13 @@ def openapi_ui():
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    model_name = request.args.get('model', 'last_model.pkl')
+    model_name = request.args.get('model', 'XGBoost.pkl')
     model_path = os.path.join(MODEL_FOLDER, model_name)
 
     try:
         model = joblib.load(model_path)
 
-        # Проверка: JSON или форма
+        # Определение источника входных данных: JSON или форма
         if request.is_json:
             input_data = request.get_json()
         else:
@@ -79,13 +79,17 @@ def predict():
                 'total_meters': float(request.form['total_meters'])
             }
 
+        # Подготовка датафрейма
         df = pd.DataFrame([input_data])
-        prediction = model.predict(df)[0]
+        df['first_floor'] = df['floor'] == 1
+        df['last_floor'] = df['floor'] == df['floors_count']
+
+        # Предсказание и преобразование в обычный float
+        prediction = float(model.predict(df)[0])
 
         if request.is_json:
             return jsonify({"prediction": [prediction]})
         else:
-            # Отправка результата на index.html
             millions = int(prediction) // 1_000_000
             thousands = (int(prediction) % 1_000_000) // 1000
             price_text = f"{millions} млн {thousands} тыс"
@@ -103,7 +107,7 @@ def predict():
 @app.route('/predict_form', methods=['POST'])
 def predict_form():
     try:
-        model_path = os.path.join(MODEL_FOLDER, 'latest_model.pkl')
+        model_path = os.path.join(MODEL_FOLDER, 'temp.pkl')
         if not os.path.exists(model_path):
             return render_template('index.html', error="Модель не найдена. Пожалуйста, обучите модель.")
         model = joblib.load(model_path)
