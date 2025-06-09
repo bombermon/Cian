@@ -1,9 +1,12 @@
 cert.pem
 key.pem
-/data
+/data/raw
+/data/processed
+/data/for_pl
 security.log
 /logs
 /processed
 /models
 server.log
 pipeline.log
+.env

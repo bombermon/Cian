@@ -47,7 +47,7 @@ pip install -r requirements.txt
 3. Запустите цикл сбора данных и обучения:
 ```bash
 python src/run_pipeline.py --model_name last_model.pkl --test_size 0.2
-
+```
 ### Данные
 Используемые данные включают следующие характеристики:
 * Площадь жилья

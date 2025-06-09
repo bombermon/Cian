@@ -1,0 +1,35 @@
+schema: '2.0'
+stages:
+  preprocess:
+    cmd: python3 src/preprocess_data.py data/for_pl/data.csv data/processed/test_pl.csv
+      --force
+    deps:
+    - path: data/for_pl/data.csv
+      hash: md5
+      md5: 927c2ee1bd87d0e94b780bc70d4ebc0c
+      size: 280363
+    - path: src/preprocess_data.py
+      hash: md5
+      md5: 140567c7badfb1535a9efaca45b77dc5
+      size: 1304
+    outs:
+    - path: data/processed/test_pl.csv
+      hash: md5
+      md5: 670f365b46a4567184aa65b29b196341
+      size: 10203
+  train:
+    cmd: python3 src/train.py data/processed/test_pl.csv models/lin_model.pkl
+    deps:
+    - path: data/processed/test_pl.csv
+      hash: md5
+      md5: 670f365b46a4567184aa65b29b196341
+      size: 10203
+    - path: src/train.py
+      hash: md5
+      md5: 5ce829e91e7c313f7d99cb7e01fd0caf
+      size: 1945
+    outs:
+    - path: models/lin_model.pkl
+      hash: md5
+      md5: b0d312b9c7252f045905df9635ff0493
+      size: 1056

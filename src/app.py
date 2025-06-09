@@ -11,9 +11,29 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
 import json
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from flask_httpauth import HTTPTokenAuth
+from dotenv import load_dotenv
+import os
 
+# Загрузка .env
+load_dotenv()
+
+# Flask
 app = Flask(__name__, template_folder='templates')
 CORS(app)
+
+# Авторизация по токену
+auth = HTTPTokenAuth(scheme='Bearer')
+VALID_TOKEN = os.getenv("API_TOKEN")  # добавьте API_TOKEN в .env
+
+@auth.verify_token
+def verify_token(token):
+    return token == VALID_TOKEN
+
+
+
 UPLOAD_FOLDER = 'uploads'
 MODEL_FOLDER = 'models'
 LOG_FOLDER = 'logs'
@@ -59,8 +79,8 @@ def openapi_ui():
     return redirect(f"https://petstore.swagger.io/?url={request.url_root}openapi.json", code=302)
 
 
-
 @app.route('/predict', methods=['POST'])
+@auth.login_required
 def predict():
     model_name = request.args.get('model', 'XGBoost.pkl')
     model_path = os.path.join(MODEL_FOLDER, model_name)
@@ -68,9 +88,19 @@ def predict():
     try:
         model = joblib.load(model_path)
 
-        # Определение источника входных данных: JSON или форма
         if request.is_json:
-            input_data = request.get_json()
+            data = request.get_json()
+            features = data.get("features")
+            if not features or len(features) != 4:
+                raise ValueError("Неверный формат входных данных, ожидаются 4 признака в массиве features")
+            
+            # Создаем DataFrame с нужными колонками
+            input_data = {
+                'floor': features[0],
+                'floors_count': features[1],
+                'rooms_count': features[2],
+                'total_meters': features[3]
+            }
         else:
             input_data = {
                 'floor': int(request.form['floor']),
@@ -79,16 +109,16 @@ def predict():
                 'total_meters': float(request.form['total_meters'])
             }
 
-        # Подготовка датафрейма
         df = pd.DataFrame([input_data])
+        logging.info(f"Input data for prediction: {input_data}")
+
         df['first_floor'] = df['floor'] == 1
         df['last_floor'] = df['floor'] == df['floors_count']
 
-        # Предсказание и преобразование в обычный float
         prediction = float(model.predict(df)[0])
 
         if request.is_json:
-            return jsonify({"prediction": [prediction]})
+            return jsonify({"prediction": prediction})
         else:
             millions = int(prediction) // 1_000_000
             thousands = (int(prediction) % 1_000_000) // 1000
@@ -102,33 +132,6 @@ def predict():
         else:
             return render_template('index.html', error="Ошибка предсказания. Проверьте входные данные.")
 
-
-
-@app.route('/predict_form', methods=['POST'])
-def predict_form():
-    try:
-        model_path = os.path.join(MODEL_FOLDER, 'temp.pkl')
-        if not os.path.exists(model_path):
-            return render_template('index.html', error="Модель не найдена. Пожалуйста, обучите модель.")
-        model = joblib.load(model_path)
-        data = {
-            'floor': int(request.form['floor']),
-            'floors_count': int(request.form['floors_count']),
-            'rooms_count': int(request.form['rooms_count']),
-            'total_meters': float(request.form['total_meters'])
-        }
-        df = pd.DataFrame([data])
-        prediction = model.predict(df)[0]
-
-       
-        millions = int(prediction) // 1_000_000
-        thousands = (int(prediction) % 1_000_000) // 1000
-        price_text = f"{millions} млн {thousands} тыс"
-
-        return render_template('index.html', prediction=price_text)
-    except Exception as e:
-        logging.error(f"Form prediction error: {str(e)}")
-        return render_template('index.html', error="Ошибка предсказания. Проверьте входные данные.")
 
 
 @app.route('/models', methods=['GET'])

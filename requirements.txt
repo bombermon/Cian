@@ -1,0 +1,10 @@
+flask-httpauth
+boto3
+gunicorn
+Flask
+flask-cors
+flask-sqlalchemy
+python-dotenv
+pandas
+scikit-learn
+joblib

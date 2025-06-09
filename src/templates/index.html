@@ -1,4 +1,3 @@
-<!-- templates/index.html -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -15,7 +14,8 @@
             display: block;
             margin-top: 10px;
         }
-        input[type="number"] {
+        input[type="number"],
+        input[type="text"] {
             width: 100%;
             padding: 8px;
         }
@@ -60,7 +60,10 @@
         <div id="result"></div>
     {% endif %}
 
-    <form id="predict-form" method="POST" action="/predict">
+    <form id="predict-form">
+        <label for="token">API токен (Bearer ...)</label>
+        <input type="text" id="token" name="token" required placeholder="Bearer supersecret">
+
         <label for="floor">Этаж</label>
         <input type="number" id="floor" name="floor" required>
 
@@ -93,25 +96,35 @@
 
         document.getElementById('predict-form').addEventListener('submit', async function (e) {
             e.preventDefault();
+
+            const token = document.getElementById('token').value.trim();
             const data = {
-                floor: Number(document.getElementById('floor').value),
-                floors_count: Number(document.getElementById('floors_count').value),
-                rooms_count: Number(document.getElementById('rooms_count').value),
-                total_meters: Number(document.getElementById('total_meters').value)
+                features: [
+                    Number(document.getElementById('floor').value),
+                    Number(document.getElementById('floors_count').value),
+                    Number(document.getElementById('rooms_count').value),
+                    Number(document.getElementById('total_meters').value)
+                ]
             };
 
             try {
                 const response = await fetch('/predict', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': token
+                    },
                     body: JSON.stringify(data)
                 });
 
                 const result = await response.json();
-                const value = result.prediction ? Math.round(result.prediction[0]) : 0;
-                document.getElementById('result').innerText = result.prediction
-                    ? 'Предсказанная цена: ' + numberToWords(value)
-                    : 'Ошибка: ' + result.error;
+                if (response.ok) {
+                    const value = Math.round(result.prediction);
+                    document.getElementById('result').innerText =
+                        'Предсказанная цена: ' + numberToWords(value);
+                } else {
+                    document.getElementById('result').innerText = 'Ошибка: ' + (result.error || 'Неверный токен');
+                }
             } catch (err) {
                 document.getElementById('result').innerText = 'Ошибка: не удалось получить ответ от сервера.';
             }
